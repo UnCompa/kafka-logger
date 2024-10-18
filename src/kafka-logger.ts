@@ -1,6 +1,6 @@
 import { Kafka, Partitioners } from 'kafkajs';
 
-interface CustomLog {
+export interface CustomLog {
   ip?: string;
   appUser?: string;
   channel?: string;
@@ -23,7 +23,7 @@ export class KafkaLogger {
   private producer;
   private topic: string; // Almacenar el tópico proporcionado
 
-  constructor(brokers: string[], topic: string, clientId: string) {
+  constructor(brokers: string[], topic: string, clientId?: string) {
     const kafka = new Kafka({
       clientId: clientId ?? 'logger-service',
       brokers: brokers,
@@ -40,14 +40,14 @@ export class KafkaLogger {
       await this.producer.connect();
       console.log('Kafka producer connected');
     } catch (error) {
-      throw new Error('Error connecting Kafka producer' +  error);
+      throw new ConnectionError('Error connecting Kafka producer' +  error);
     }
   }
 
   // Parámetro 'topic' opcional
   async logMessage(level: string, message: string, topic?: string) {
     if (!this.producer) {
-      throw new Error('Producer is not connected');
+      throw new ConnectionError('Producer is not connected');
     }
 
     try {
@@ -56,14 +56,14 @@ export class KafkaLogger {
         messages: [{ key: level, value: message }],
       });
     } catch (error) {
-      throw new Error('Failed to send log message to Kafka' + error);
+      throw new MessageSendError('Failed to send log message to Kafka', error);
     }
   }
 
   // Nuevo método para enviar el logEntry
   async logCustomMessage(customLog: CustomLog, topic?: string) {
     if (!this.producer) {
-      throw new Error('Producer is not connected');
+      throw new ConnectionError('Producer is not connected');
     }
 
     // Construir el logEntry con los valores por defecto
@@ -95,8 +95,22 @@ export class KafkaLogger {
         messages: [{ value: JSON.stringify(logEntry) }],
       });
     } catch (error) {
-      throw new Error('Failed to send custom log message to Kafka' + error);
+      throw new MessageSendError('Failed to send custom log message to Kafka', error);
     }
   }
 }
 
+export class ConnectionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ConnectionError';
+  }
+}
+
+export class MessageSendError extends Error {
+  constructor(message: string, originalError: any) {
+    super(`${message}: ${originalError.message}`);
+    this.name = 'MessageSendError';
+    this.stack = originalError.stack;
+  }
+}
