@@ -12,9 +12,9 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.KafkaLogger = void 0;
 const kafkajs_1 = require("kafkajs");
 class KafkaLogger {
-    constructor(brokers, topic) {
+    constructor(brokers, topic, clientId) {
         const kafka = new kafkajs_1.Kafka({
-            clientId: 'logger-service',
+            clientId: clientId !== null && clientId !== void 0 ? clientId : 'logger-service',
             brokers: brokers,
         });
         this.topic = topic; // Asignar el tópico
@@ -29,7 +29,7 @@ class KafkaLogger {
                 console.log('Kafka producer connected');
             }
             catch (error) {
-                console.error('Error connecting Kafka producer', error);
+                throw new Error('Error connecting Kafka producer' + error);
             }
         });
     }
@@ -37,8 +37,7 @@ class KafkaLogger {
     logMessage(level, message, topic) {
         return __awaiter(this, void 0, void 0, function* () {
             if (!this.producer) {
-                console.error('Producer is not connected');
-                return;
+                throw new Error('Producer is not connected');
             }
             try {
                 yield this.producer.send({
@@ -47,7 +46,7 @@ class KafkaLogger {
                 });
             }
             catch (error) {
-                console.error('Failed to send log message to Kafka', error);
+                throw new Error('Failed to send log message to Kafka' + error);
             }
         });
     }
@@ -55,8 +54,7 @@ class KafkaLogger {
     logCustomMessage(customLog, topic) {
         return __awaiter(this, void 0, void 0, function* () {
             if (!this.producer) {
-                console.error('Producer is not connected');
-                return;
+                throw new Error('Producer is not connected');
             }
             // Construir el logEntry con los valores por defecto
             const logEntry = {
@@ -85,10 +83,9 @@ class KafkaLogger {
                     topic: topic || this.topic,
                     messages: [{ value: JSON.stringify(logEntry) }],
                 });
-                console.log('Log sent to Kafka:', logEntry);
             }
             catch (error) {
-                console.error('Failed to send custom log message to Kafka', error);
+                throw new Error('Failed to send custom log message to Kafka' + error);
             }
         });
     }

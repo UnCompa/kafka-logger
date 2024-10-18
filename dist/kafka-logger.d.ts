@@ -19,7 +19,7 @@ interface CustomLog {
 export declare class KafkaLogger {
     private producer;
     private topic;
-    constructor(brokers: string[], topic: string);
+    constructor(brokers: string[], topic: string, clientId: string);
     connect(): Promise<void>;
     logMessage(level: string, message: string, topic?: string): Promise<void>;
     logCustomMessage(customLog: CustomLog, topic?: string): Promise<void>;

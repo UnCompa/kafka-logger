@@ -23,9 +23,9 @@ export class KafkaLogger {
   private producer;
   private topic: string; // Almacenar el tópico proporcionado
 
-  constructor(brokers: string[], topic: string) {
+  constructor(brokers: string[], topic: string, clientId: string) {
     const kafka = new Kafka({
-      clientId: 'logger-service',
+      clientId: clientId ?? 'logger-service',
       brokers: brokers,
     });
 
@@ -40,15 +40,14 @@ export class KafkaLogger {
       await this.producer.connect();
       console.log('Kafka producer connected');
     } catch (error) {
-      console.error('Error connecting Kafka producer', error);
+      throw new Error('Error connecting Kafka producer' +  error);
     }
   }
 
   // Parámetro 'topic' opcional
   async logMessage(level: string, message: string, topic?: string) {
     if (!this.producer) {
-      console.error('Producer is not connected');
-      return;
+      throw new Error('Producer is not connected');
     }
 
     try {
@@ -57,15 +56,14 @@ export class KafkaLogger {
         messages: [{ key: level, value: message }],
       });
     } catch (error) {
-      console.error('Failed to send log message to Kafka', error);
+      throw new Error('Failed to send log message to Kafka' + error);
     }
   }
 
   // Nuevo método para enviar el logEntry
   async logCustomMessage(customLog: CustomLog, topic?: string) {
     if (!this.producer) {
-      console.error('Producer is not connected');
-      return;
+      throw new Error('Producer is not connected');
     }
 
     // Construir el logEntry con los valores por defecto
@@ -96,9 +94,8 @@ export class KafkaLogger {
         topic: topic || this.topic, // Usar el tópico pasado o el del constructor
         messages: [{ value: JSON.stringify(logEntry) }],
       });
-      console.log('Log sent to Kafka:', logEntry);
     } catch (error) {
-      console.error('Failed to send custom log message to Kafka', error);
+      throw new Error('Failed to send custom log message to Kafka' + error);
     }
   }
 }
