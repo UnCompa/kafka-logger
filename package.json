@@ -1,6 +1,6 @@
 {
   "name": "kafka-logger-mm",
-  "version": "1.0.12",
+  "version": "1.0.13",
   "type": "commonjs",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
