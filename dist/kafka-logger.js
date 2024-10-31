@@ -14,12 +14,12 @@ const kafkajs_1 = require("kafkajs");
 class KafkaLogger {
     constructor(brokers, topic, clientId) {
         const kafka = new kafkajs_1.Kafka({
-            clientId: clientId !== null && clientId !== void 0 ? clientId : 'logger-service',
+            clientId: clientId !== null && clientId !== void 0 ? clientId : "logger-service",
             brokers: brokers,
             retry: {
-                retries: 5,
-                initialRetryTime: 300,
-                factor: 2, // Factor de aumento del tiempo de espera entre reintentos
+                retries: 2, // Número de reintentos
+                initialRetryTime: 300, // Tiempo inicial entre reintentos
+                factor: 3, // Factor de aumento del tiempo de espera entre reintentos
             },
         });
         this.topic = topic; // Asignar el tópico
@@ -31,11 +31,10 @@ class KafkaLogger {
         return __awaiter(this, void 0, void 0, function* () {
             try {
                 yield this.producer.connect();
-                console.log('Kafka producer connected');
+                console.log("Kafka producer connected");
             }
             catch (error) {
-                console.error('Error connecting Kafka producer:', error);
-                setTimeout(this.connect, 5000);
+                throw new kafkajs_1.KafkaJSError("Error connecting Kafka producer");
                 // Aquí puedes implementar lógica de reconexión o simplemente loguear el error
             }
         });
@@ -44,19 +43,17 @@ class KafkaLogger {
     logMessage(level, message, topic) {
         return __awaiter(this, void 0, void 0, function* () {
             if (!this.producer) {
-                console.error('Producer is not connected');
-                // Intentar reconectar al productor
                 yield this.connect();
-                return; // No continuar si no hay conexión
+                throw new kafkajs_1.KafkaJSError("Failed to send log message to Kafka");
             }
             try {
                 yield this.producer.send({
-                    topic: topic || this.topic,
+                    topic: topic || this.topic, // Usar el tópico pasado o el del constructor
                     messages: [{ key: level, value: message }],
                 });
             }
             catch (error) {
-                console.error('Failed to send log message to Kafka:', error);
+                throw new kafkajs_1.KafkaJSError("Failed to send log message to Kafka: " + error);
                 // Aquí puedes implementar reintentos o algún mecanismo de fallback
             }
         });
@@ -65,41 +62,46 @@ class KafkaLogger {
     logCustomMessage(level, customLog, topic) {
         return __awaiter(this, void 0, void 0, function* () {
             if (!this.producer) {
-                console.error('Producer is not connected');
-                // Intentar reconectar al productor
                 yield this.connect();
-                return; // No continuar si no hay conexión
+                throw new kafkajs_1.KafkaJSError("Failed to send custom log message to Kafka");
             }
+            let logEntry;
             // Construir el logEntry con los valores por defecto
-            const logEntry = {
-                timestamp: new Date().toISOString(),
-                componentType: "Backend",
-                ip: customLog.ip || "172.20.102.187",
-                appUser: customLog.appUser || "usrosbnewqabim",
-                channel: customLog.channel || "web",
-                consumer: customLog.consumer || "self service portal",
-                amdocs360product: customLog.amdocs360product || "gg",
-                apiName: customLog.apiName || "Nombre del api",
-                microserviceName: customLog.microserviceName || "Nombre Microservicio",
-                methodName: customLog.methodName || "Nombre del metodo ejecutado",
-                layer: customLog.layer || "Exposicion",
-                parentId: customLog.parentId || crypto.randomUUID(),
-                referenceId: customLog.referenceId || crypto.randomUUID(),
-                dateTimeTransacctionStart: customLog.dateTimeTransacctionStart || new Date().toISOString(),
-                dateTimeTransacctionFinish: customLog.dateTimeTransacctionFinish || new Date().toISOString(),
-                executionTime: customLog.executionTime || "tomar el tiempo de ejecución",
-                country: customLog.country || "",
-                city: customLog.city || "",
-            };
+            if (typeof customLog !== "string") {
+                logEntry = {
+                    timestamp: new Date().toISOString(),
+                    level: customLog.level,
+                    message: customLog.message,
+                    componentType: "Backend",
+                    ip: customLog.ip || "172.20.102.187", // Cambia la IP según sea necesario
+                    appUser: customLog.appUser || "usrosbnewqabim",
+                    channel: customLog.channel || "web",
+                    consumer: customLog.consumer || "self service portal",
+                    apiName: customLog.apiName || "Nombre del api",
+                    microserviceName: customLog.microserviceName || "Nombre Microservicio",
+                    methodName: customLog.methodName || "Nombre del metodo ejecutado",
+                    layer: customLog.layer || "Exposicion",
+                    parentId: customLog.parentId,
+                    referenceId: customLog.referenceId,
+                    dateTimeTransacctionStart: customLog.dateTimeTransacctionStart || new Date().toISOString(),
+                    dateTimeTransacctionFinish: customLog.dateTimeTransacctionFinish || new Date().toISOString(),
+                    executionTime: customLog.executionTime || "tomar el tiempo de ejecución",
+                    country: customLog.country || "",
+                    city: customLog.city || "",
+                };
+            }
+            else {
+                logEntry = customLog;
+            }
             try {
                 // Enviar el logEntry a Kafka
                 yield this.producer.send({
-                    topic: topic || this.topic,
+                    topic: topic || this.topic, // Usar el tópico pasado o el del constructor
                     messages: [{ key: level, value: JSON.stringify(logEntry) }],
                 });
             }
             catch (error) {
-                console.error('Failed to send custom log message to Kafka:', error);
+                throw new kafkajs_1.KafkaJSError("Failed to send custom log message to Kafka:", error);
                 // Aquí también puedes implementar un mecanismo de reintento o fallback
             }
         });

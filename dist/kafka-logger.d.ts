@@ -1,9 +1,11 @@
 export interface CustomLog {
+    timestamp?: string;
+    level?: string;
+    message?: string;
     ip?: string;
     appUser?: string;
     channel?: string;
     consumer?: string;
-    amdocs360product?: string;
     apiName?: string;
     microserviceName?: string;
     methodName?: string;
@@ -15,6 +17,7 @@ export interface CustomLog {
     executionTime?: string;
     country?: string;
     city?: string;
+    componentType?: string;
 }
 export declare class KafkaLogger {
     private producer;
@@ -22,5 +25,5 @@ export declare class KafkaLogger {
     constructor(brokers: string[], topic: string, clientId?: string);
     connect(): Promise<void>;
     logMessage(level: string, message: string, topic?: string): Promise<void>;
-    logCustomMessage(level: string, customLog: CustomLog, topic?: string): Promise<void>;
+    logCustomMessage(level: string, customLog: CustomLog | string, topic?: string): Promise<void>;
 }
