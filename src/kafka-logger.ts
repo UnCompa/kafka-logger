@@ -48,7 +48,7 @@ export class KafkaLogger {
       await this.producer.connect();
       console.log("Kafka producer connected");
     } catch (error) {
-      console.error('Error connecting Kafka producer:', error);
+      console.error("Error connecting Kafka producer");
       setTimeout(this.connect, 5000);
       // Aquí puedes implementar lógica de reconexión o simplemente loguear el error
     }
@@ -57,7 +57,7 @@ export class KafkaLogger {
   // Parámetro 'topic' opcional
   async logMessage(level: string, message: string, topic?: string) {
     if (!this.producer) {
-      console.error('Producer is not connected');
+      console.error("Producer is not connected");
       // Intentar reconectar al productor
       await this.connect();
       return; // No continuar si no hay conexión
@@ -69,7 +69,7 @@ export class KafkaLogger {
         messages: [{ key: level, value: message }],
       });
     } catch (error) {
-      console.error('Failed to send log message to Kafka:', error);
+      console.error("Failed to send log message to Kafka");
       // Aquí puedes implementar reintentos o algún mecanismo de fallback
     }
   }
@@ -77,7 +77,7 @@ export class KafkaLogger {
   // Nuevo método para enviar el logEntry
   async logCustomMessage(level: string, customLog: CustomLog, topic?: string) {
     if (!this.producer) {
-      console.error('Producer is not connected');
+      console.error("Producer is not connected");
       // Intentar reconectar al productor
       await this.connect();
       return; // No continuar si no hay conexión
@@ -119,7 +119,7 @@ export class KafkaLogger {
         messages: [{ value: JSON.stringify(logEntry) }],
       });
     } catch (error) {
-      console.error('Failed to send custom log message to Kafka:', error);
+      console.error("Failed to send custom log message to Kafka");
       // Aquí también puedes implementar un mecanismo de reintento o fallback
     }
   }
