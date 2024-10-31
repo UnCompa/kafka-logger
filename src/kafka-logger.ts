@@ -31,9 +31,9 @@ export class KafkaLogger {
       clientId: clientId ?? "logger-service",
       brokers: brokers,
       retry: {
-        retries: 2, // Número de reintentos
+        retries: 5, // Número de reintentos
         initialRetryTime: 300, // Tiempo inicial entre reintentos
-        factor: 3, // Factor de aumento del tiempo de espera entre reintentos
+        factor: 2, // Factor de aumento del tiempo de espera entre reintentos
       },
     });
 
@@ -48,7 +48,8 @@ export class KafkaLogger {
       await this.producer.connect();
       console.log("Kafka producer connected");
     } catch (error) {
-      throw new KafkaJSError("Error connecting Kafka producer");
+      console.error('Error connecting Kafka producer:', error);
+      setTimeout(this.connect, 5000);
       // Aquí puedes implementar lógica de reconexión o simplemente loguear el error
     }
   }
@@ -56,8 +57,10 @@ export class KafkaLogger {
   // Parámetro 'topic' opcional
   async logMessage(level: string, message: string, topic?: string) {
     if (!this.producer) {
+      console.error('Producer is not connected');
+      // Intentar reconectar al productor
       await this.connect();
-      throw new KafkaJSError("Failed to send log message to Kafka");
+      return; // No continuar si no hay conexión
     }
 
     try {
@@ -66,20 +69,18 @@ export class KafkaLogger {
         messages: [{ key: level, value: message }],
       });
     } catch (error) {
-      throw new KafkaJSError("Failed to send log message to Kafka: " + error);
+      console.error('Failed to send log message to Kafka:', error);
       // Aquí puedes implementar reintentos o algún mecanismo de fallback
     }
   }
 
   // Nuevo método para enviar el logEntry
-  async logCustomMessage(
-    level: string,
-    customLog: CustomLog | string,
-    topic?: string
-  ) {
+  async logCustomMessage(level: string, customLog: CustomLog, topic?: string) {
     if (!this.producer) {
+      console.error('Producer is not connected');
+      // Intentar reconectar al productor
       await this.connect();
-      throw new KafkaJSError("Failed to send custom log message to Kafka");
+      return; // No continuar si no hay conexión
     }
     let logEntry: CustomLog | string;
     // Construir el logEntry con los valores por defecto
@@ -115,13 +116,10 @@ export class KafkaLogger {
       // Enviar el logEntry a Kafka
       await this.producer.send({
         topic: topic || this.topic, // Usar el tópico pasado o el del constructor
-        messages: [{ key: level, value: JSON.stringify(logEntry) }],
+        messages: [{ value: JSON.stringify(logEntry) }],
       });
     } catch (error) {
-      throw new KafkaJSError(
-        "Failed to send custom log message to Kafka:",
-        error
-      );
+      console.error('Failed to send custom log message to Kafka:', error);
       // Aquí también puedes implementar un mecanismo de reintento o fallback
     }
   }
