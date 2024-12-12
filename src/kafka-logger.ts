@@ -1,5 +1,5 @@
-import { Kafka, KafkaJSError, Partitioners } from "kafkajs";
-
+import { fromNodeProviderChain } from '@aws-sdk/credential-providers';
+import { Kafka, logLevel, Partitioners } from "kafkajs";
 export interface CustomLog {
   timestamp?: string;
   level?: string;
@@ -22,105 +22,110 @@ export interface CustomLog {
   componentType?: string;
 }
 
+// Extiende los tipos de SASLOptions para incluir aws_msk_iam
+type ExtendedSASLOptions =
+  | {
+    mechanism: 'plain' | 'scram-sha-256' | 'scram-sha-512' | 'aws' | 'oauthbearer';
+    username: string;
+    password: string;
+  }
+  | {
+    mechanism: 'aws_msk_iam';
+    authenticationProvider: () => Promise<{ username: string; password: string }>;
+  };
+
 export class KafkaLogger {
   private producer;
-  private topic: string; // Almacenar el tópico proporcionado
+  private topic: string;
 
   constructor(brokers: string[], topic: string, clientId?: string) {
+    const useAWSMSK = process.env.USE_AWS_MSK === 'true' || false;
+    const msj = useAWSMSK ? 'Usign AWS mode' : "Usign default mode"
+    console.info(msj)
+    // Construye el objeto SASL dinámicamente si se usa AWS MSK
+    const sasl: ExtendedSASLOptions | undefined = useAWSMSK
+      ? {
+        mechanism: 'aws_msk_iam',
+        authenticationProvider: async () => {
+          const credentials = await fromNodeProviderChain()();
+          const accessKeyId = credentials.accessKeyId;
+          const secretAccessKey = credentials.secretAccessKey;
+          const sessionToken = credentials.sessionToken || '';
+          const signature = Buffer.from(secretAccessKey, 'utf-8').toString(
+            'base64',
+          );
+
+          return {
+            username: `AWS:${accessKeyId}`,
+            password: `${signature}${sessionToken ? `:${sessionToken}` : ''}`,
+          };
+        },
+      }
+      : undefined;
+
     const kafka = new Kafka({
-      clientId: clientId ?? "logger-service",
-      brokers: brokers,
+      clientId: clientId ?? 'logger-service',
+      brokers,
+      ssl: useAWSMSK, // Habilita SSL solo si se usa AWS MSK
+      sasl: sasl as any, // Asegúrate de pasar el tipo extendido
+      logLevel: logLevel.INFO,
       retry: {
-        retries: 5, // Número de reintentos
-        initialRetryTime: 300, // Tiempo inicial entre reintentos
-        factor: 2, // Factor de aumento del tiempo de espera entre reintentos
+        retries: 5,
+        initialRetryTime: 300,
+        factor: 2,
       },
     });
 
-    this.topic = topic; // Asignar el tópico
+    this.topic = topic;
     this.producer = kafka.producer({
-      createPartitioner: Partitioners.LegacyPartitioner, // Usa el partitioner legado
+      createPartitioner: Partitioners.LegacyPartitioner,
     });
   }
 
   async connect() {
     try {
       await this.producer.connect();
-      console.log("Kafka producer connected");
+      console.info('[KAFKA MM] - Kafka producer connected');
     } catch (error) {
-      console.error("Error connecting Kafka producer");
-      setTimeout(this.connect, 5000);
-      // Aquí puedes implementar lógica de reconexión o simplemente loguear el error
+      console.error('[KAFKA MM] - Error connecting Kafka producer:', error.message);
+      setTimeout(() => this.connect(), 5000); // Reintentar conexión
     }
   }
 
-  // Parámetro 'topic' opcional
   async logMessage(level: string, message: string, topic?: string) {
     if (!this.producer) {
-      console.error("Producer is not connected");
-      // Intentar reconectar al productor
+      console.error('[KAFKA MM] - Producer is not connected');
       await this.connect();
-      return; // No continuar si no hay conexión
+      return;
     }
 
     try {
       await this.producer.send({
-        topic: topic || this.topic, // Usar el tópico pasado o el del constructor
+        topic: topic || this.topic,
         messages: [{ key: level, value: message }],
       });
     } catch (error) {
-      console.error("Failed to send log message to Kafka");
-      // Aquí puedes implementar reintentos o algún mecanismo de fallback
+      console.error('[KAFKA MM] - Failed to send log message to Kafka:', error.message);
     }
   }
 
-  // Nuevo método para enviar el logEntry
-  async logCustomMessage(level: string, customLog: CustomLog, topic?: string) {
+  async logCustomMessage(level: string, customLog: object, topic?: string) {
     if (!this.producer) {
-      console.error("Producer is not connected");
-      // Intentar reconectar al productor
+      console.error('[KAFKA MM] - Producer is not connected');
       await this.connect();
-      return; // No continuar si no hay conexión
+      return;
     }
-    let logEntry: CustomLog | string;
-    // Construir el logEntry con los valores por defecto
-    if (typeof customLog !== "string") {
-      logEntry = {
-        timestamp: new Date().toISOString(),
-        level: customLog.level,
-        message: customLog.message,
-        componentType: "Backend",
-        ip: customLog.ip || "172.20.102.187", // Cambia la IP según sea necesario
-        appUser: customLog.appUser || "usrosbnewqabim",
-        channel: customLog.channel || "web",
-        consumer: customLog.consumer || "self service portal",
-        apiName: customLog.apiName || "Nombre del api",
-        microserviceName: customLog.microserviceName || "Nombre Microservicio",
-        methodName: customLog.methodName || "Nombre del metodo ejecutado",
-        layer: customLog.layer || "Exposicion",
-        parentId: customLog.parentId,
-        referenceId: customLog.referenceId,
-        dateTimeTransacctionStart:
-          customLog.dateTimeTransacctionStart || new Date().toISOString(),
-        dateTimeTransacctionFinish:
-          customLog.dateTimeTransacctionFinish || new Date().toISOString(),
-        executionTime:
-          customLog.executionTime || "tomar el tiempo de ejecución",
-        country: customLog.country || "",
-        city: customLog.city || "",
-      };
-    } else {
-      logEntry = customLog;
-    }
+
     try {
-      // Enviar el logEntry a Kafka
       await this.producer.send({
-        topic: topic || this.topic, // Usar el tópico pasado o el del constructor
-        messages: [{ value: JSON.stringify(logEntry) }],
+        topic: topic || this.topic,
+        messages: [{ value: JSON.stringify({ level, ...customLog }) }],
       });
     } catch (error) {
-      console.error("Failed to send custom log message to Kafka");
-      // Aquí también puedes implementar un mecanismo de reintento o fallback
+      console.error(
+        '[KAFKA MM] - Failed to send custom log message to Kafka:',
+        error.message,
+      );
     }
   }
 }

@@ -25,5 +25,5 @@ export declare class KafkaLogger {
     constructor(brokers: string[], topic: string, clientId?: string);
     connect(): Promise<void>;
     logMessage(level: string, message: string, topic?: string): Promise<void>;
-    logCustomMessage(level: string, customLog: CustomLog, topic?: string): Promise<void>;
+    logCustomMessage(level: string, customLog: object, topic?: string): Promise<void>;
 }
